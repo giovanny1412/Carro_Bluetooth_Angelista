@@ -1,4 +1,4 @@
-// --- 1. DEFINICIÓN DE BLOQUES ---
+// --- 1. Gio DEFINICIÓN DE BLOQUES ---
 Blockly.Blocks['mover_carro'] = {
   init: function() {
     this.appendDummyInput().appendField("Mover")
