@@ -2,46 +2,163 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ESP32 Bluetooth Car</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 BLE Robot - Blockly</title>
+    
     <script src="https://unpkg.com/blockly/blockly.min.js"></script>
     <script src="https://unpkg.com/blockly/blocks_compressed.js"></script>
     <script src="https://unpkg.com/blockly/javascript_compressed.js"></script>
+
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; text-align: center; }
-        #blocklyDiv { height: 450px; width: 100%; border-radius: 10px; border: 2px solid #333; }
-        .bar { background: #333; color: white; padding: 10px; border-radius: 10px 10px 0 0; }
-        .btns { margin: 20px; }
-        button { padding: 12px 25px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; color: white; }
-        .btn-blue { background: #0082FC; }
-        .btn-green { background: #28a745; }
-        pre { background: #eee; padding: 10px; text-align: left; max-height: 150px; overflow-y: auto; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: #1e1e1e; color: white; display: flex; flex-direction: column; height: 100vh; }
+        header { background: #333; padding: 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        #blocklyDiv { flex-grow: 1; width: 100%; }
+        .controls { background: #252526; padding: 20px; display: flex; gap: 15px; justify-content: center; align-items: center; border-top: 1px solid #444; }
+        button { padding: 12px 24px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-connect { background-color: #f39c12; color: white; }
+        .btn-connect:hover { background-color: #e67e22; }
+        .btn-run { background-color: #27ae60; color: white; }
+        .btn-run:hover { background-color: #2ecc71; }
+        #consoleOutput { background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; height: 80px; overflow-y: auto; border-top: 1px solid #444; }
+        .blocklyTreeLabel { color: #fff; }
     </style>
 </head>
 <body>
 
-    <div class="bar">🚀 CONTROL POR BLOQUES (Bluetooth)</div>
-    <div id="blocklyDiv"></div>
+<header>
+    <h1>🤖 Panel de Control BLE - ESP32</h1>
+</header>
 
-    <div class="btns">
-        <button class="btn-blue" onclick="conectarBluetooth()">📡 Vincular Carro</button>
-        <button class="btn-green" onclick="enviarPrograma()">▶️ Ejecutar Programa</button>
-    </div>
+<div id="blocklyDiv"></div>
 
-    <p>Código generado para el carro:</p>
-    <pre id="codigoVista"></pre>
+<div id="consoleOutput">>> Sistema listo. Conecta el carro para empezar...</div>
 
-    <xml id="toolbox" style="display: none">
-        <category name="Movimiento" colour="230">
-            <block type="mover_carro"></block>
-        </category>
-        <category name="Control" colour="120">
-            <block type="controls_repeat_ext">
-                <value name="TIMES"><shadow type="math_number"><field name="NUM">3</field></shadow></value>
-            </block>
-            <block type="esperar_segundos"></block>
-        </category>
-    </xml>
+<div class="controls">
+    <button class="btn-connect" onclick="conectarBLE()">🔗 Conectar Carro</button>
+    <button class="btn-run" onclick="enviarPrograma()">▶️ Ejecutar Programa</button>
+</div>
 
-    <script src="app.js"></script>
+<xml id="toolbox" style="display: none">
+    <category name="Movimiento" colour="230">
+        <block type="mover_carro"></block>
+    </category>
+    <category name="Control" colour="120">
+        <block type="esperar_segundos"></block>
+        <block type="controls_repeat_ext">
+            <value name="TIMES">
+                <shadow type="math_number"><field name="NUM">3</field></shadow>
+            </value>
+        </block>
+    </category>
+</xml>
+
+<script>
+// --- CONFIGURACIÓN DE BLOQUES ---
+
+// Bloque de Movimiento
+Blockly.Blocks['mover_carro'] = {
+  init: function() {
+    this.appendDummyInput().appendField("Mover")
+        .appendField(new Blockly.FieldDropdown([
+            ["adelante", "FORWARD"], ["atrás", "BACKWARD"], 
+            ["derecha", "RIGHT"], ["izquierda", "LEFT"], ["detener", "STOP"]
+        ]), "DIR");
+    this.setPreviousStatement(true); this.setNextStatement(true);
+    this.setColour(230);
+  }
+};
+
+// Bloque de Tiempo (Esperar)
+Blockly.Blocks['esperar_segundos'] = {
+  init: function() {
+    this.appendDummyInput()
+        .appendField("esperar")
+        .appendField(new Blockly.FieldNumber(1, 0.1), "SEG")
+        .appendField("segundos");
+    this.setPreviousStatement(true);
+    this.setNextStatement(true);
+    this.setColour(120);
+  }
+};
+
+// --- GENERADORES DE CÓDIGO ---
+
+Blockly.JavaScript['mover_carro'] = function(block) {
+  var dir = block.getFieldValue('DIR');
+  return `await enviar("${dir}");\n`;
+};
+
+Blockly.JavaScript['esperar_segundos'] = function(block) {
+  var segundos = block.getFieldValue('SEG');
+  return `await esperar(${segundos * 1000});\n`;
+};
+
+// --- LÓGICA BLUETOOTH BLE ---
+
+const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+let characteristicBase;
+
+function log(msg) {
+    const consoleDiv = document.getElementById('consoleOutput');
+    consoleDiv.innerHTML += "<br>>> " + msg;
+    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+}
+
+async function conectarBLE() {
+    try {
+        log("Buscando dispositivo...");
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [{ name: 'Carro_Bloques_BLE' }],
+            optionalServices: [SERVICE_UUID]
+        });
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        characteristicBase = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        log("✅ ¡Conectado con éxito!");
+        alert("✅ Conectado a " + device.name);
+    } catch (e) {
+        log("❌ Error: " + e);
+        alert("Error de conexión BLE");
+    }
+}
+
+const esperar = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function enviar(msg) {
+    if (characteristicBase) {
+        const encoder = new TextEncoder();
+        await characteristicBase.writeValue(encoder.encode(msg));
+        log("Enviado: " + msg);
+    } else {
+        log("⚠️ No conectado. Conecta el BLE primero.");
+    }
+}
+
+async function enviarPrograma() {
+    const codeFromBlocks = Blockly.JavaScript.workspaceToCode(workspace);
+    if (!codeFromBlocks) return alert("¡Arrastra algunos bloques primero!");
+    
+    log("Iniciando programa...");
+    // Ejecución asíncrona para respetar los "await"
+    const finalCode = `(async () => { 
+        try {
+            ${codeFromBlocks} 
+            await enviar("STOP");
+            log("🏁 Programa finalizado.");
+        } catch(err) { log("Error: " + err); }
+    })();`;
+
+    eval(finalCode);
+}
+
+// Inyección de Blockly
+const workspace = Blockly.inject('blocklyDiv', {
+    toolbox: document.getElementById('toolbox'),
+    grid: {spacing: 20, length: 3, colour: '#ccc', snap: true},
+    trashcan: true
+});
+</script>
+
 </body>
 </html>
