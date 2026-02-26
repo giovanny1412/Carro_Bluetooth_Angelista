@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>ESP32 Bluetooth Car</title>
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <script src="https://unpkg.com/blockly/blocks_compressed.js"></script>
+    <script src="https://unpkg.com/blockly/javascript_compressed.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; text-align: center; }
+        #blocklyDiv { height: 450px; width: 100%; border-radius: 10px; border: 2px solid #333; }
+        .bar { background: #333; color: white; padding: 10px; border-radius: 10px 10px 0 0; }
+        .btns { margin: 20px; }
+        button { padding: 12px 25px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; color: white; }
+        .btn-blue { background: #0082FC; }
+        .btn-green { background: #28a745; }
+        pre { background: #eee; padding: 10px; text-align: left; max-height: 150px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <div class="bar">🚀 CONTROL POR BLOQUES (Bluetooth)</div>
+    <div id="blocklyDiv"></div>
+
+    <div class="btns">
+        <button class="btn-blue" onclick="conectarBluetooth()">📡 Vincular Carro</button>
+        <button class="btn-green" onclick="enviarPrograma()">▶️ Ejecutar Programa</button>
+    </div>
+
+    <p>Código generado para el carro:</p>
+    <pre id="codigoVista"></pre>
+
+    <xml id="toolbox" style="display: none">
+        <category name="Movimiento" colour="230">
+            <block type="mover_carro"></block>
+        </category>
+        <category name="Control" colour="120">
+            <block type="controls_repeat_ext">
+                <value name="TIMES"><shadow type="math_number"><field name="NUM">3</field></shadow></value>
+            </block>
+            <block type="esperar_segundos"></block>
+        </category>
+    </xml>
+
+    <script src="app.js"></script>
+</body>
+</html>
