@@ -1,4 +1,5 @@
-// 1. Definir bloques
+// --- 1. Definición de Bloques ---
+
 Blockly.Blocks['mover_carro'] = {
   init: function() {
     this.appendDummyInput().appendField("Mover")
@@ -11,56 +12,86 @@ Blockly.Blocks['mover_carro'] = {
   }
 };
 
+// NUEVO: Bloque de Esperar
 Blockly.Blocks['esperar_segundos'] = {
   init: function() {
-    this.appendDummyInput().appendField("esperar")
-        .appendField(new Blockly.FieldNumber(1), "SEC").appendField("seg");
-    this.setPreviousStatement(true); this.setNextStatement(true);
+    this.appendDummyInput()
+        .appendField("esperar")
+        .appendField(new Blockly.FieldNumber(1, 0.1), "SEG")
+        .appendField("segundos");
+    this.setPreviousStatement(true);
+    this.setNextStatement(true);
     this.setColour(120);
   }
 };
 
-// 2. Generadores de código
+// --- 2. Generadores de Código C++ (Simulado para ejecución Web) ---
+
 Blockly.JavaScript['mover_carro'] = function(block) {
-  return 'send("' + block.getFieldValue('DIR') + '");\n';
+  var dir = block.getFieldValue('DIR');
+  return `await enviar("${dir}");\n`; // Usamos await para que respete el orden
 };
 
 Blockly.JavaScript['esperar_segundos'] = function(block) {
-  return 'await sleep(' + (block.getFieldValue('SEC') * 1000) + ');\n';
+  var segundos = block.getFieldValue('SEG');
+  var ms = segundos * 1000;
+  return `await esperar(${ms});\n`; // Pausa la ejecución en la web
 };
 
-// 3. Bluetooth y Ejecución
-let characteristic;
+// --- 3. Funciones de Control y Bluetooth ---
 
-async function conectarBluetooth() {
+let characteristicBase;
+const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+// Función para crear pausas de tiempo
+const esperar = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function conectarBLE() {
     try {
         const device = await navigator.bluetooth.requestDevice({
-            acceptAllDevices: true,
-            optionalServices: ['00001101-0000-1000-8000-00805f9b34fb']
+            filters: [{ name: 'Carro_Bloques_BLE' }],
+            optionalServices: [SERVICE_UUID]
         });
         const server = await device.gatt.connect();
-        // Nota: En un ESP32 real, a veces el servicio UUID varía. 
-        // Este es el estándar para SPP (Serial Port Profile).
-        alert("Conectado a: " + device.name);
-    } catch (e) { alert("Error: " + e); }
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        characteristicBase = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        alert("✅ Conectado al Carro");
+    } catch (e) {
+        alert("Error de conexión: " + e);
+    }
 }
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function send(msg) {
-    console.log("Enviando: " + msg);
-    // Aquí iría la lógica de characteristic.writeValue() 
-    // Para pruebas, lo veremos en la consola.
+async function enviar(msg) {
+    if (characteristicBase) {
+        const encoder = new TextEncoder();
+        await characteristicBase.writeValue(encoder.encode(msg));
+        console.log("Enviado: " + msg);
+    } else {
+        console.error("No hay conexión BLE");
+    }
 }
 
+// Función principal para ejecutar los bloques
 async function enviarPrograma() {
-    const code = Blockly.JavaScript.workspaceToCode(workspace);
-    document.getElementById('codigoVista').innerText = code;
+    // Obtenemos el código de los bloques
+    const codigoDeBloques = Blockly.JavaScript.workspaceToCode(workspace);
     
-    // Evalúa el código generado para enviarlo por Bluetooth
+    // Lo envolvemos en una función asíncrona para que 'await' funcione
+    const programaCompleto = `(async () => { 
+        ${codigoDeBloques} 
+        await enviar("STOP"); // Detener al finalizar por seguridad
+        console.log("Programa terminado");
+    })();`;
+
     try {
-        eval('(async () => {' + code + '})()');
-    } catch (e) { console.error(e); }
+        eval(programaCompleto); 
+    } catch (e) {
+        console.error("Error al ejecutar bloques: " + e);
+    }
 }
 
-var workspace = Blockly.inject('blocklyDiv', {toolbox: document.getElementById('toolbox')});
+// Inicializar Blockly
+var workspace = Blockly.inject('blocklyDiv', {
+    toolbox: document.getElementById('toolbox')
+});
