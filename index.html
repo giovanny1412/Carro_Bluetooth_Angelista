@@ -108,15 +108,40 @@ async function conectarBLE() {
 
 const esperar = ms => new Promise(r => setTimeout(r, ms));
 
+// --- COPIA DESDE AQUÍ ---
+let enviando = false;
+
 async function enviar(msg) {
-    if (characteristicBase) {
-        try {
-            const encoder = new TextEncoder();
-            await characteristicBase.writeValue(encoder.encode(msg));
-            log("Enviado: " + msg);
-        } catch (err) { log("❌ Error de envío: " + err); }
+    if (!characteristicBase) {
+        log("⚠️ No conectado. Haz clic en Vincular.");
+        return;
+    }
+
+    // Si ya hay un envío en curso, esperamos a que termine
+    while (enviando) {
+        await esperar(50); 
+    }
+
+    try {
+        enviando = true; 
+        const encoder = new TextEncoder();
+        
+        // Usamos writeValueWithResponse para que el navegador espere la confirmación del ESP32
+        await characteristicBase.writeValueWithResponse(encoder.encode(msg));
+        
+        log("Enviado: " + msg);
+        
+        // Pausa de seguridad para que el chip no se bloquee
+        await esperar(100); 
+    } catch (err) {
+        log("❌ Error de envío: " + err);
+        // Si se desconecta, reseteamos la variable para poder reconectar
+        if (err.name === 'NetworkError') characteristicBase = null;
+    } finally {
+        enviando = false; 
     }
 }
+// --- HASTA AQUÍ ---
 
 async function enviarPrograma() {
     // IMPORTANTE: Generar el código usando el generador correcto
@@ -145,3 +170,4 @@ const workspace = Blockly.inject('blocklyDiv', {
 </script>
 </body>
 </html>
+
