@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ESP32 BLE Robot - Blockly</title>
+    <title>ESP32 BLE Robot - Versión Final</title>
+    
     <script src="https://unpkg.com/blockly/blockly.min.js"></script>
     <script src="https://unpkg.com/blockly/javascript_compressed.js"></script>
 
@@ -13,7 +14,7 @@
         button { padding: 12px 24px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; }
         .btn-connect { background-color: #f39c12; color: white; }
         .btn-run { background-color: #27ae60; color: white; }
-        #console { background: #000; color: #0f0; padding: 10px; text-align: left; font-family: monospace; height: 100px; overflow-y: auto; border-radius: 5px; }
+        #console { background: #000; color: #0f0; padding: 10px; text-align: left; font-family: monospace; height: 120px; overflow-y: auto; border: 1px solid #444; }
     </style>
 </head>
 <body>
@@ -27,7 +28,7 @@
         <button class="btn-run" onclick="enviarPrograma()">▶️ Ejecutar Programa</button>
     </div>
 
-    <div id="console">>> Sistema listo. Conecta y arrastra bloques...</div>
+    <div id="console">>> Listo para conectar...</div>
 
     <xml id="toolbox" style="display: none">
         <category name="Movimiento" colour="230">
@@ -36,10 +37,17 @@
         <category name="Tiempo" colour="120">
             <block type="esperar_segundos"></block>
         </category>
+        <category name="Lógica" colour="210">
+            <block type="controls_repeat_ext">
+                <value name="TIMES">
+                    <shadow type="math_number"><field name="NUM">3</field></shadow>
+                </value>
+            </block>
+        </category>
     </xml>
 
 <script>
-// --- DEFINICIÓN DE BLOQUES ---
+// --- 1. DEFINICIÓN DE BLOQUES ---
 Blockly.Blocks['mover_carro'] = {
   init: function() {
     this.appendDummyInput().appendField("Mover")
@@ -61,21 +69,19 @@ Blockly.Blocks['esperar_segundos'] = {
   }
 };
 
-// --- GENERADORES DE CÓDIGO (SOLUCIÓN AL ERROR) ---
-// Usamos javascript.javascriptGenerator para asegurar compatibilidad
-const generator = Blockly.JavaScript;
-
-generator['mover_carro'] = function(block) {
+// --- 2. GENERADORES DE CÓDIGO (CORRECCIÓN DEL ERROR) ---
+// Usamos el generador de JavaScript de la forma estándar
+javascript.javascriptGenerator.forBlock['mover_carro'] = function(block) {
   const dir = block.getFieldValue('DIR');
   return `await enviar("${dir}");\n`;
 };
 
-generator['esperar_segundos'] = function(block) {
+javascript.javascriptGenerator.forBlock['esperar_segundos'] = function(block) {
   const segundos = block.getFieldValue('SEG');
   return `await esperar(${segundos * 1000});\n`;
 };
 
-// --- LÓGICA DE CONTROL Y BLE ---
+// --- 3. LÓGICA DE CONTROL BLE ---
 let characteristicBase;
 const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
 const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
@@ -104,34 +110,37 @@ const esperar = ms => new Promise(r => setTimeout(r, ms));
 
 async function enviar(msg) {
     if (characteristicBase) {
-        const encoder = new TextEncoder();
-        await characteristicBase.writeValue(encoder.encode(msg));
-        log("Enviado: " + msg);
+        try {
+            const encoder = new TextEncoder();
+            await characteristicBase.writeValue(encoder.encode(msg));
+            log("Enviado: " + msg);
+        } catch (err) { log("❌ Error de envío: " + err); }
     }
 }
 
 async function enviarPrograma() {
-    // Generamos el código a partir de los bloques
-    const code = generator.workspaceToCode(workspace);
+    // IMPORTANTE: Generar el código usando el generador correcto
+    const code = javascript.javascriptGenerator.workspaceToCode(workspace);
     
     if (!code) {
-        log("⚠️ No hay bloques conectados para ejecutar.");
+        log("⚠️ No hay bloques conectados.");
         return;
     }
 
-    log("🚀 Ejecutando...");
-    // Ejecutamos el código generado de forma asíncrona
+    log("🚀 Ejecutando programa...");
     try {
+        // Ejecutamos como función asíncrona para que el "await" funcione
         const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-        const ejecutar = new AsyncFunction(code + ' await enviar("STOP"); log("🏁 Fin.");');
-        await ejecutar();
-    } catch (e) { log("❌ Error de ejecución: " + e); }
+        const fn = new AsyncFunction(code + ' await enviar("STOP"); log("🏁 Fin.");');
+        await fn();
+    } catch (e) { log("❌ Error en ejecución: " + e); }
 }
 
 // Inicializar Blockly
 const workspace = Blockly.inject('blocklyDiv', {
     toolbox: document.getElementById('toolbox'),
-    trashcan: true
+    trashcan: true,
+    grid: {spacing: 20, length: 3, colour: '#ccc', snap: true}
 });
 </script>
 </body>
