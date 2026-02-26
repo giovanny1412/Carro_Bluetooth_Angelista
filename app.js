@@ -1,5 +1,4 @@
-// --- 1. Definición de Bloques ---
-
+// --- 1. DEFINICIÓN DE BLOQUES ---
 Blockly.Blocks['mover_carro'] = {
   init: function() {
     this.appendDummyInput().appendField("Mover")
@@ -12,94 +11,34 @@ Blockly.Blocks['mover_carro'] = {
   }
 };
 
-// NUEVO: Bloque de Esperar
 Blockly.Blocks['esperar_segundos'] = {
   init: function() {
-    this.appendDummyInput()
-        .appendField("esperar")
-        .appendField(new Blockly.FieldNumber(1, 0.1), "SEG")
-        .appendField("segundos");
-    this.setPreviousStatement(true);
-    this.setNextStatement(true);
+    this.appendDummyInput().appendField("esperar")
+        .appendField(new Blockly.FieldNumber(1, 0.1), "SEG").appendField("segundos");
+    this.setPreviousStatement(true); this.setNextStatement(true);
     this.setColour(120);
   }
 };
 
-// --- 2. Generadores de Código C++ (Simulado para ejecución Web) ---
+// --- 2. GENERADORES DE CÓDIGO (La solución al error) ---
 
-Blockly.JavaScript['mover_carro'] = function(block) {
+// Importante: Si usas la versión comprimida moderna, se hace así:
+const javascriptGenerator = Blockly.JavaScript; 
+
+javascriptGenerator['mover_carro'] = function(block) {
   var dir = block.getFieldValue('DIR');
-  return `await enviar("${dir}");\n`; // Usamos await para que respete el orden
+  return `await enviar("${dir}");\n`;
 };
 
-Blockly.JavaScript['esperar_segundos'] = function(block) {
+javascriptGenerator['esperar_segundos'] = function(block) {
   var segundos = block.getFieldValue('SEG');
-  var ms = segundos * 1000;
-  return `await esperar(${ms});\n`; // Pausa la ejecución en la web
+  return `await esperar(${segundos * 1000});\n`;
 };
 
-// --- 3. Funciones de Control y Bluetooth ---
-
-let characteristicBase;
-const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-
-// Función para crear pausas de tiempo
-const esperar = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-async function conectarBLE() {
-    try {
-        const device = await navigator.bluetooth.requestDevice({
-            filters: [{ name: 'Carro_Bloques_BLE' }],
-            optionalServices: [SERVICE_UUID]
-        });
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        characteristicBase = await service.getCharacteristic(CHARACTERISTIC_UUID);
-        alert("✅ Conectado al Carro");
-    } catch (e) {
-        alert("Error de conexión: " + e);
-    }
-}
-
-async function enviar(msg) {
-    if (characteristicBase) {
-        try {
-            const encoder = new TextEncoder();
-            // Añadimos \n al final para que el ESP32 sepa que el comando terminó
-            await characteristicBase.writeValue(encoder.encode(msg + "\n")); 
-            log("Enviado: " + msg);
-            // Pequeña pausa de seguridad entre comandos para no saturar el BLE
-            await esperar(100); 
-        } catch (error) {
-            log("❌ Error de envío: " + error);
-        }
-    } else {
-        log("⚠️ No conectado.");
-    }
-}
-
-// Función principal para ejecutar los bloques
-async function enviarPrograma() {
-    // Obtenemos el código de los bloques
-    const codigoDeBloques = Blockly.JavaScript.workspaceToCode(workspace);
-    
-    // Lo envolvemos en una función asíncrona para que 'await' funcione
-    const programaCompleto = `(async () => { 
-        ${codigoDeBloques} 
-        await enviar("STOP"); // Detener al finalizar por seguridad
-        console.log("Programa terminado");
-    })();`;
-
-    try {
-        eval(programaCompleto); 
-    } catch (e) {
-        console.error("Error al ejecutar bloques: " + e);
-    }
-}
-
-// Inicializar Blockly
-var workspace = Blockly.inject('blocklyDiv', {
-    toolbox: document.getElementById('toolbox')
-});
-
+// Si usas el bloque de "repeat", también necesita su generador
+javascriptGenerator['controls_repeat_ext'] = function(block) {
+  var repeats = javascriptGenerator.valueToCode(block, 'TIMES', javascriptGenerator.ORDER_ASSIGNMENT) || '0';
+  var branch = javascriptGenerator.statementToCode(block, 'DO');
+  var code = `for (var i = 0; i < ${repeats}; i++) {\n${branch}}\n`;
+  return code;
+};
