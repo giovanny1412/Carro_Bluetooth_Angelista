@@ -64,11 +64,18 @@ async function conectarBLE() {
 
 async function enviar(msg) {
     if (characteristicBase) {
-        const encoder = new TextEncoder();
-        await characteristicBase.writeValue(encoder.encode(msg));
-        console.log("Enviado: " + msg);
+        try {
+            const encoder = new TextEncoder();
+            // Añadimos \n al final para que el ESP32 sepa que el comando terminó
+            await characteristicBase.writeValue(encoder.encode(msg + "\n")); 
+            log("Enviado: " + msg);
+            // Pequeña pausa de seguridad entre comandos para no saturar el BLE
+            await esperar(100); 
+        } catch (error) {
+            log("❌ Error de envío: " + error);
+        }
     } else {
-        console.error("No hay conexión BLE");
+        log("⚠️ No conectado.");
     }
 }
 
@@ -95,3 +102,4 @@ async function enviarPrograma() {
 var workspace = Blockly.inject('blocklyDiv', {
     toolbox: document.getElementById('toolbox')
 });
+
